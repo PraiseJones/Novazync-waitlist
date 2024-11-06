@@ -1,28 +1,51 @@
-const { addEmailToWaitlist, getWaitlistPosition } = require('../models/waitlist');
+const db = require('../db');
 
-const joinWaitlist = async (req, res) => {
-    const { email } = req.body;
-    if (!email) {
-        return res.status(400).json({ message: 'Email is required' });
-    }
+const addEmailToWaitlist = async (email) => {
+  try {
+    await db.query(
+      "SELECT setval('waitlist_id_seq', (SELECT MAX(id) FROM waitlist))"
+    );
 
-    const newEntry = await addEmailToWaitlist(email);
-    if (!newEntry) {
-        return res.status(409).json({ message: 'Email already on waitlist' });
-    }
+    const result = await db.query(
+      "INSERT INTO waitlist (email) VALUES ($1) ON CONFLICT (email) DO NOTHING RETURNING *",
+      [email]
+    );
 
-    res.status(201).json({ message: 'Successfully joined the waitlist' });
+    return result.rows[0];
+  } catch (error) {
+    console.error("Error adding email to waitlist:", error);
+    throw new Error("Error adding email to waitlist");
+  }
 };
 
+const joinWaitlist = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const result = await addEmailToWaitlist(email);
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getWaitlistPosition = async (email) => {
+    const result = await db.query(
+      `SELECT COUNT(*) AS position 
+       FROM waitlist 
+       WHERE id <= (SELECT id FROM waitlist WHERE email = $1)`,
+      [email]
+    );
+    return result.rows[0]?.position || null;
+  };
+
 const checkWaitlistPosition = async (req, res) => {
+  try {
     const { email } = req.params;
     const position = await getWaitlistPosition(email);
-
-    if (!position) {
-        return res.status(404).json({ message: 'Email not found on waitlist' });
-    }
-
     res.status(200).json({ position });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
 
 module.exports = { joinWaitlist, checkWaitlistPosition };
