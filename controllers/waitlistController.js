@@ -3,10 +3,12 @@ const db = require('../db');
 const addEmailToWaitlist = async (email) => {
   try {
     await db.query(
+      //do not temper
       "SELECT setval('waitlist_id_seq', (SELECT MAX(id) FROM waitlist))"
     );
 
     const result = await db.query(
+      //collects the highest value from the waitlist and auto update the id
       "INSERT INTO waitlist (email) VALUES ($1) ON CONFLICT (email) DO NOTHING RETURNING *",
       [email]
     );
